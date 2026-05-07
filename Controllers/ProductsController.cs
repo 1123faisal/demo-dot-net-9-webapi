@@ -1,4 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using MyFirstWebApi.Data;
+using MyFirstWebApi.Models;
 
 namespace MyFirstWebApi.Controllers;
 
@@ -6,87 +9,78 @@ namespace MyFirstWebApi.Controllers;
 [Route("api/[controller]")]
 public class ProductsController : ControllerBase
 {
-    private List<Product> products = new List<Product>
+    private readonly AppDbContext _db;
+
+    public ProductsController(AppDbContext db)
     {
-        new Product(1, "Laptop", 75000, "Electronics"),
-        new Product(2, "Phone", 25000, "Electronics"),
-        new Product(3, "Desk", 12000, "Furniture"),
-        new Product(4, "Notebook", 200, "Stationery"),
-    };
+        _db = db;
+    }
 
     [HttpGet]
-    public ActionResult<List<Product>> GetAll()
+    public async Task<ActionResult<List<Product>>> GetAll()
     {
+        var products = await _db.Products.ToListAsync();
         return Ok(products);
     }
 
     [HttpGet("{id}")]
-    public ActionResult<Product> GetById(int id)
+    public async Task<ActionResult<Product>> GetById(int id)
     {
-        var product = products.FirstOrDefault(p => p.Id == id);
+        var product = await _db.Products.FindAsync(id);
         if (product == null)
             return NotFound("Product not found");
         return Ok(product);
     }
 
     [HttpPost]
-    public ActionResult<Product> Create(Product newProduct)
+    public async Task<ActionResult<Product>> Create(Product newProduct)
     {
-        newProduct.Id = products.Max(p => p.Id) + 1;
-        products.Add(newProduct);
+        _db.Products.Add(newProduct);
+        await _db.SaveChangesAsync();
+
         return CreatedAtAction(nameof(GetById), new { id = newProduct.Id }, newProduct);
     }
 
     [HttpPut("{id}")]
-    public ActionResult<Product> Update(int id, Product updated)
+    public async Task<ActionResult<Product>> Update(int id, Product updated)
     {
-        var product = products.FirstOrDefault(p => p.Id == id);
+        var product = await _db.Products.FindAsync(id);
         if (product == null)
             return NotFound("Product Not Found.");
+
         product.Name = updated.Name;
         product.Category = updated.Category;
         product.Price = updated.Price;
+        await _db.SaveChangesAsync();
+
         return Ok(product);
     }
 
     [HttpDelete("{id}")]
-    public ActionResult Delete(int id)
+    public async Task<ActionResult> Delete(int id)
     {
-        var product = products.FirstOrDefault(p => p.Id == id);
+        var product = await _db.Products.FindAsync(id);
         if (product != null)
             return NotFound("Product not found.");
-        products.Remove(product!);
+
+        _db.Products.Remove(product!);
+        await _db.SaveChangesAsync();
+
         return NoContent();
     }
 
     [HttpGet("search")]
-    public ActionResult<List<Product>> Search(
+    public async Task<ActionResult<List<Product>>> Search(
         [FromQuery] string? category,
         [FromQuery] double? maxPrice
     )
     {
-        var result = products.AsQueryable();
+        var query = _db.Products.AsQueryable();
         if (!string.IsNullOrEmpty(category))
-            result = result.Where(p => p.Category == category);
+            query = query.Where(p => p.Category == category);
         if (maxPrice.HasValue)
-            result = result.Where(p => p.Price <= maxPrice);
+            query = query.Where(p => p.Price <= maxPrice);
 
-        return Ok(result.ToList());
-    }
-}
-
-public class Product
-{
-    public int Id { get; set; }
-    public string Name { get; set; }
-    public double Price { get; set; }
-    public string Category { get; set; }
-
-    public Product(int id, string name, double price, string category)
-    {
-        Id = id;
-        Name = name;
-        Price = price;
-        Category = category;
+        return Ok(await query.ToListAsync());
     }
 }
