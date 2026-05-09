@@ -12,6 +12,8 @@ WORKDIR /app
 
 COPY --from=build /app/publish .
 
+RUN mkdir -p /app/data
+
 EXPOSE 8080
 ENV ASPNETCORE_ENVIRONMENT=Development
 ENTRYPOINT [ "dotnet","MyFirstWebApi.dll" ]

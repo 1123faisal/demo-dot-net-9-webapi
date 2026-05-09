@@ -1,0 +1,7 @@
+MyFirstWebApi/bin/
+MyFirstWebApi/obj/
+MyFirstWebApi/*.db
+MyFirstWebApi.Tests/
+.env
+.git/
+.github/
