@@ -1,6 +1,6 @@
 # MyFirstWebApi
 
-A RESTful Web API built with **ASP.NET Core (.NET 10)** demonstrating basic CRUD operations on a `Products` resource. It uses in-memory data storage and exposes interactive API documentation via **Scalar**.
+A RESTful Web API built with **ASP.NET Core (.NET 10)** demonstrating CRUD operations on a `Products` resource with JWT-based authentication. Uses **SQLite** for persistent storage and exposes interactive API documentation via **Scalar**.
 
 ---
 
@@ -8,9 +8,12 @@ A RESTful Web API built with **ASP.NET Core (.NET 10)** demonstrating basic CRUD
 
 - Full CRUD operations on products (`GET`, `POST`, `PUT`, `DELETE`)
 - Product search with optional filters (`category`, `maxPrice`)
-- OpenAPI specification via `Microsoft.AspNetCore.OpenApi`
-- Interactive API explorer via **Scalar** (available in Development mode)
-- HTTPS redirection and authorization middleware
+- JWT authentication with register/login endpoints
+- Role-based authorization on protected endpoints
+- OpenAPI specification with Bearer token security scheme
+- Interactive API explorer via **Scalar** with lock icon on protected routes
+- SQLite persistent storage with Entity Framework Core migrations
+- Docker support with data volume mounting
 
 ---
 
@@ -20,9 +23,10 @@ A RESTful Web API built with **ASP.NET Core (.NET 10)** demonstrating basic CRUD
 |---|---|
 | Framework | ASP.NET Core 10 |
 | Language | C# (.NET 10) |
-| API Docs | Microsoft.AspNetCore.OpenApi `10.0.3` |
-| API Explorer | Scalar.AspNetCore `2.14.11` |
-| Data Store | In-memory (no database) |
+| Database | SQLite via Entity Framework Core 10 |
+| Authentication | JWT Bearer (`Microsoft.AspNetCore.Authentication.JwtBearer`) |
+| API Docs | `Microsoft.AspNetCore.OpenApi` 10.0.3 |
+| API Explorer | `Scalar.AspNetCore` 2.14.11 |
 
 ---
 
@@ -32,12 +36,22 @@ A RESTful Web API built with **ASP.NET Core (.NET 10)** demonstrating basic CRUD
 dot-net-demos.sln
 MyFirstWebApi/
 ├── Controllers/
-│   └── ProductsController.cs   # Products API controller + Product model
+│   ├── AuthController.cs        # Register & login endpoints
+│   └── ProductsController.cs   # Products CRUD controller
+├── Data/
+│   └── AppDbContext.cs          # EF Core DbContext
+├── Migrations/                  # EF Core migration files
+├── Models/
+│   └── User.cs                  # User entity model
+├── Services/
+│   ├── IAuthService.cs          # Auth service interface
+│   └── AuthService.cs           # JWT auth implementation
 ├── Properties/
-│   └── launchSettings.json     # Launch profiles (http / https)
-├── appsettings.json             # App configuration
-├── appsettings.Development.json # Development-specific configuration
-├── Program.cs                   # Application entry point & middleware pipeline
+│   └── launchSettings.json      # Launch profiles
+├── Dockerfile                   # Docker image definition
+├── appsettings.json             # App configuration (DB, JWT)
+├── appsettings.Development.json # Development overrides
+├── Program.cs                   # Entry point & middleware pipeline
 └── MyFirstWebApi.csproj         # Project file & NuGet dependencies
 ```
 
@@ -48,8 +62,9 @@ MyFirstWebApi/
 ### Prerequisites
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
+- [Docker](https://www.docker.com/) (optional)
 
-### Run the API
+### Run Locally
 
 ```bash
 cd MyFirstWebApi
@@ -65,43 +80,111 @@ The API will be available at:
 
 ### Interactive API Docs (Scalar)
 
-While running in **Development** mode, open:
+Open in your browser while running in Development mode:
 
 ```
 http://localhost:5056/scalar/v1
 ```
 
+Endpoints marked with a **lock icon** require a Bearer token. Use the lock button to enter your JWT before making requests.
+
+---
+
+## Running with Docker
+
+### Build the image
+
+```bash
+docker build -t myfirstapi .
+```
+
+### Run the container
+
+```powershell
+docker run -p 8080:8080 -v ${PWD}/data:/app/data myfirstapi
+```
+
+The API will be available at `http://localhost:8080`.  
+Scalar UI: `http://localhost:8080/scalar/v1`
+
+The SQLite database is persisted to the `./data` folder on the host via the volume mount.
+
+---
+
+## Configuration
+
+### appsettings.json
+
+| Key | Description |
+|---|---|
+| `ConnectionStrings:DefaultConnection` | SQLite database path (default: `/app/data/app.db`) |
+| `Jwt:Key` | Secret key for signing JWT tokens |
+| `Jwt:Issuer` | JWT issuer |
+| `Jwt:Audience` | JWT audience |
+| `Jwt:ExpiryHours` | Token expiry in hours (default: `24`) |
+
 ---
 
 ## API Endpoints
 
+### Authentication
+
+#### Register
+
+```http
+POST /api/auth/register
+Content-Type: application/json
+```
+
+```json
+{
+  "username": "alice",
+  "password": "secret123",
+  "role": "Admin"
+}
+```
+
+Returns a JWT token on success.
+
+---
+
+#### Login
+
+```http
+POST /api/auth/login
+Content-Type: application/json
+```
+
+```json
+{
+  "username": "alice",
+  "password": "secret123"
+}
+```
+
+Returns a JWT token on success.
+
+---
+
+### Products
+
 Base URL: `/api/products`
 
-### Get All Products
+> Protected endpoints require `Authorization: Bearer <token>` header.
+
+#### Get All Products
 
 ```http
 GET /api/products
 ```
 
-Returns a list of all products.
-
----
-
-### Get Product by ID
+#### Get Product by ID
 
 ```http
 GET /api/products/{id}
 ```
 
-| Parameter | Type | Description |
-|---|---|---|
-| `id` | `int` | Product ID |
-
-Returns the product, or `404 Not Found` if it does not exist.
-
----
-
-### Search Products
+#### Search Products
 
 ```http
 GET /api/products/search?category={category}&maxPrice={maxPrice}
@@ -112,16 +195,13 @@ GET /api/products/search?category={category}&maxPrice={maxPrice}
 | `category` | `string` | Filter by category (optional) |
 | `maxPrice` | `double` | Maximum price filter (optional) |
 
----
-
-### Create Product
+#### Create Product 🔒
 
 ```http
 POST /api/products
+Authorization: Bearer <token>
 Content-Type: application/json
 ```
-
-**Request Body:**
 
 ```json
 {
@@ -133,16 +213,13 @@ Content-Type: application/json
 
 Returns `201 Created` with the created product.
 
----
-
-### Update Product
+#### Update Product 🔒
 
 ```http
 PUT /api/products/{id}
+Authorization: Bearer <token>
 Content-Type: application/json
 ```
-
-**Request Body:**
 
 ```json
 {
@@ -154,12 +231,11 @@ Content-Type: application/json
 
 Returns the updated product, or `404 Not Found`.
 
----
-
-### Delete Product
+#### Delete Product 🔒
 
 ```http
 DELETE /api/products/{id}
+Authorization: Bearer <token>
 ```
 
 Returns `204 No Content` on success, or `404 Not Found`.
@@ -179,7 +255,7 @@ Returns `204 No Content` on success, or `404 Not Found`.
 
 | Field | Type | Description |
 |---|---|---|
-| `id` | `int` | Unique identifier (auto-assigned on create) |
+| `id` | `int` | Unique identifier (auto-assigned) |
 | `name` | `string` | Product name |
 | `price` | `double` | Product price |
 | `category` | `string` | Product category |
@@ -188,19 +264,13 @@ Returns `204 No Content` on success, or `404 Not Found`.
 
 ## Seed Data
 
-The API ships with the following in-memory seed data:
+On startup, the database is seeded with the following products if empty:
 
-| ID | Name | Price | Category |
-|---|---|---|---|
-| 1 | Laptop | 75000 | Electronics |
-| 2 | Phone | 25000 | Electronics |
-| 3 | Desk | 12000 | Furniture |
-| 4 | Notebook | 200 | Stationery |
+| Name | Price | Category |
+|---|---|---|
+| Laptop | 75,000 | Electronics |
+| Phone | 25,000 | Electronics |
+| Headphones | 3,000 | Electronics |
+| Desk | 12,000 | Furniture |
+| Notebook | 200 | Stationery |
 
-> **Note:** Data is reset every time the application restarts (no persistent storage).
-
----
-
-## License
-
-This project is intended for demo and learning purposes.
