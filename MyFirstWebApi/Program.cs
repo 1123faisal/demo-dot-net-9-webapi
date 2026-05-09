@@ -2,26 +2,69 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi;
 using MyFirstWebApi.Data;
 using MyFirstWebApi.Models;
 using MyFirstWebApi.Services;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.WebHost.UseUrls("http://+:8080");
 
 // Add services to the container.
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(options =>
+{
+    options.AddDocumentTransformer(
+        (document, context, ct) =>
+        {
+            document.Components ??= new OpenApiComponents();
+            document.Components.SecuritySchemes ??=
+                new Dictionary<string, IOpenApiSecurityScheme>();
+            document.Components.SecuritySchemes["Bearer"] = new OpenApiSecurityScheme
+            {
+                Type = SecuritySchemeType.Http,
+                Scheme = "bearer",
+                In = ParameterLocation.Header,
+                BearerFormat = "JWT",
+                Description = "Enter your JWT token below.",
+            };
+            return System.Threading.Tasks.Task.CompletedTask;
+        }
+    );
+
+    options.AddOperationTransformer(
+        (operation, context, ct) =>
+        {
+            var hasAuthorize = context
+                .Description.ActionDescriptor.EndpointMetadata.OfType<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>()
+                .Any();
+
+            if (hasAuthorize)
+            {
+                operation.Security ??= [];
+                operation.Security.Add(
+                    new OpenApiSecurityRequirement
+                    {
+                        [new OpenApiSecuritySchemeReference("Bearer")] = [],
+                    }
+                );
+            }
+            return System.Threading.Tasks.Task.CompletedTask;
+        }
+    );
+});
 
 // database
-builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlite("Data Source=app.db"));
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection"))
+);
 
 // register Services
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 
-var jwtKey = builder.Configuration["Jwt:Key"];
 builder
     .Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -34,7 +77,9 @@ builder
             ValidateIssuerSigningKey = true,
             ValidIssuer = builder.Configuration["Jwt:Issuer"],
             ValidAudience = builder.Configuration["Jwt:Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey!)),
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!)
+            ),
         };
     });
 builder.Services.AddAuthorization();

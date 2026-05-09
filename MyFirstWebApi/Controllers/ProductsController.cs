@@ -7,7 +7,6 @@ namespace MyFirstWebApi.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
 public class ProductsController : ControllerBase
 {
     private readonly IProductService _service;
@@ -34,6 +33,7 @@ public class ProductsController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Roles = "Admin")]
     public async Task<ActionResult<Product>> Create(Product newProduct)
     {
         var created = await _service.CreateAsync(newProduct);
@@ -41,6 +41,7 @@ public class ProductsController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [Authorize(Roles = "Admin")]
     public async Task<ActionResult<Product>> Update(int id, Product updated)
     {
         var product = await _service.UpdateAsync(id, updated);
@@ -50,6 +51,7 @@ public class ProductsController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [Authorize(Roles = "Admin")]
     public async Task<ActionResult> Delete(int id)
     {
         var isDeleted = await _service.DeleteAsync(id);
