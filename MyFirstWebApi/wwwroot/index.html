@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>MyFirstWebApi — Test UI</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+    <style>
+      * { box-sizing: border-box; }
+      body { font-family: sans-serif; margin: 0; background: #f4f6f9; color: #333; }
+      header { background: #0066cc; color: white; padding: 16px 24px; }
+      header h1 { margin: 0; font-size: 1.4rem; }
+      .container { max-width: 960px; margin: 24px auto; padding: 0 16px; display: grid; gap: 20px; }
+      .card { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+      .card h2 { margin: 0 0 16px; font-size: 1.1rem; border-bottom: 1px solid #eee; padding-bottom: 8px; }
+      .row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+      input, select { padding: 8px; border: 1px solid #ccc; border-radius: 4px; flex: 1; min-width: 120px; font-size: 14px; }
+      button { padding: 8px 14px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; white-space: nowrap; }
+      .btn-primary { background: #0066cc; color: white; }
+      .btn-danger  { background: #dc3545; color: white; }
+      .btn-success { background: #28a745; color: white; }
+      .btn-warn    { background: #fd7e14; color: white; }
+      .btn-secondary { background: #6c757d; color: white; }
+      #status-badge { display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 13px; background: #eee; }
+      #status-badge.connected { background: #d4edda; color: #155724; }
+      #status-badge.disconnected { background: #f8d7da; color: #721c24; }
+      #token-display { font-size: 12px; word-break: break-all; background: #f8f9fa; padding: 8px; border-radius: 4px; margin-top: 8px; display: none; }
+      #log { border: 1px solid #ddd; border-radius: 6px; height: 260px; overflow-y: auto; padding: 10px; background: #fafafa; }
+      .log-entry { padding: 5px 8px; margin: 3px 0; border-radius: 4px; font-size: 13px; }
+      .log-Created  { background: #d4edda; color: #155724; }
+      .log-Updated  { background: #fff3cd; color: #856404; }
+      .log-Deleted  { background: #f8d7da; color: #721c24; }
+      .log-info     { background: #d1ecf1; color: #0c5460; }
+      .log-error    { background: #f8d7da; color: #721c24; }
+      .log-msg      { background: #e2e3e5; color: #383d41; }
+      table { width: 100%; border-collapse: collapse; font-size: 14px; }
+      th { background: #f0f4f8; text-align: left; padding: 8px; }
+      td { padding: 8px; border-top: 1px solid #eee; }
+      tr:hover td { background: #f8f9fa; }
+      .tag { display: inline-block; background: #e9ecef; border-radius: 10px; padding: 2px 8px; font-size: 12px; }
+      .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+      @media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>MyFirstWebApi — Test UI</h1>
+    </header>
+
+    <div class="container">
+
+      <!-- AUTH -->
+      <div class="grid2">
+        <div class="card">
+          <h2>Register</h2>
+          <div class="row">
+            <input id="reg-username" placeholder="Username" />
+            <input id="reg-password" placeholder="Password" type="password" />
+            <select id="reg-role">
+              <option value="User">User</option>
+              <option value="Admin">Admin</option>
+            </select>
+          </div>
+          <div class="row">
+            <button class="btn-primary" onclick="register()">Register</button>
+          </div>
+          <div id="reg-result" style="font-size:13px;color:green;margin-top:4px;"></div>
+        </div>
+
+        <div class="card">
+          <h2>Login</h2>
+          <div class="row">
+            <input id="login-username" placeholder="Username" />
+            <input id="login-password" placeholder="Password" type="password" />
+          </div>
+          <div class="row">
+            <button class="btn-primary" onclick="login()">Login</button>
+            <button class="btn-secondary" onclick="clearToken()">Clear Token</button>
+          </div>
+          <div id="token-display"></div>
+        </div>
+      </div>
+
+      <!-- PRODUCTS -->
+      <div class="card">
+        <h2>Products</h2>
+
+        <!-- Search / Filter -->
+        <div class="row" style="margin-bottom:12px;">
+          <input id="search-category" placeholder="Category (optional)" />
+          <input id="search-maxprice" placeholder="Max Price (optional)" type="number" />
+          <button class="btn-primary" onclick="searchProducts()">Search</button>
+          <button class="btn-secondary" onclick="loadProducts()">All Products</button>
+        </div>
+
+        <table>
+          <thead><tr><th>ID</th><th>Name</th><th>Price</th><th>Category</th><th>Actions (Admin)</th></tr></thead>
+          <tbody id="products-body"><tr><td colspan="5" style="color:#aaa">Click "All Products" to load</td></tr></tbody>
+        </table>
+
+        <!-- Create / Edit form -->
+        <div style="margin-top:16px; border-top:1px solid #eee; padding-top:16px;">
+          <strong style="font-size:14px;">Create / Update Product <span style="font-weight:normal;color:#888">(Admin token required)</span></strong>
+          <div class="row" style="margin-top:8px;">
+            <input id="prod-id"       placeholder="ID (for update/delete)" type="number" style="max-width:130px;" />
+            <input id="prod-name"     placeholder="Name" />
+            <input id="prod-price"    placeholder="Price" type="number" />
+            <input id="prod-category" placeholder="Category" />
+          </div>
+          <div class="row">
+            <button class="btn-success" onclick="createProduct()">Create</button>
+            <button class="btn-warn"    onclick="updateProduct()">Update</button>
+            <button class="btn-danger"  onclick="deleteProduct()">Delete</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- SIGNALR -->
+      <div class="card">
+        <h2>SignalR — Live Notifications</h2>
+        <div class="row" style="align-items:center;">
+          <span id="status-badge" class="disconnected">Disconnected</span>
+          <input id="group-name" placeholder="Group name" style="max-width:180px;" />
+          <button class="btn-primary"   onclick="joinGroup()">Join Group</button>
+          <button class="btn-secondary" onclick="leaveGroup()">Leave Group</button>
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <input id="chat-user"    placeholder="Your name" style="max-width:150px;" />
+          <input id="chat-message" placeholder="Message to group" />
+          <button class="btn-primary" onclick="sendToGroup()">Send to Group</button>
+        </div>
+        <div id="log" style="margin-top:12px;"></div>
+      </div>
+
+    </div>
+
+    <script>
+      let token = null;
+
+      // ── Helpers ──────────────────────────────────────────────
+      function authHeaders() {
+        const h = { 'Content-Type': 'application/json' };
+        if (token) h['Authorization'] = `Bearer ${token}`;
+        return h;
+      }
+
+      function addLog(text, type = 'info') {
+        const log = document.getElementById('log');
+        const d = document.createElement('div');
+        d.className = `log-entry log-${type}`;
+        d.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
+        log.appendChild(d);
+        log.scrollTop = log.scrollHeight;
+      }
+
+      function showError(el, msg) {
+        document.getElementById(el).textContent = '❌ ' + msg;
+        document.getElementById(el).style.color = 'red';
+      }
+
+      // ── Auth ─────────────────────────────────────────────────
+      async function register() {
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: document.getElementById('reg-username').value,
+            password: document.getElementById('reg-password').value,
+            role:     document.getElementById('reg-role').value,
+          }),
+        });
+        const data = await res.json();
+        const el = document.getElementById('reg-result');
+        if (res.ok) {
+          el.style.color = 'green';
+          el.textContent = '✅ Registered! Token saved.';
+          setToken(data.token);
+        } else {
+          el.style.color = 'red';
+          el.textContent = '❌ ' + (data || 'Error');
+        }
+      }
+
+      async function login() {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: document.getElementById('login-username').value,
+            password: document.getElementById('login-password').value,
+          }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          setToken(data.token);
+        } else {
+          const el = document.getElementById('token-display');
+          el.style.display = 'block';
+          el.style.color = 'red';
+          el.textContent = '❌ ' + (data || 'Invalid credentials');
+        }
+      }
+
+      function setToken(t) {
+        token = t;
+        const el = document.getElementById('token-display');
+        el.style.display = 'block';
+        el.style.color = '#155724';
+        el.textContent = '✅ Token: ' + t;
+      }
+
+      function clearToken() {
+        token = null;
+        const el = document.getElementById('token-display');
+        el.style.display = 'block';
+        el.style.color = '#856404';
+        el.textContent = 'Token cleared.';
+      }
+
+      // ── Products ─────────────────────────────────────────────
+      async function loadProducts() {
+        const res = await fetch('/api/products', { headers: authHeaders() });
+        renderProducts(await res.json());
+      }
+
+      async function searchProducts() {
+        const cat   = document.getElementById('search-category').value;
+        const price = document.getElementById('search-maxprice').value;
+        let url = '/api/products/search?';
+        if (cat)   url += `category=${encodeURIComponent(cat)}&`;
+        if (price) url += `maxPrice=${price}`;
+        const res = await fetch(url, { headers: authHeaders() });
+        renderProducts(await res.json());
+      }
+
+      function renderProducts(products) {
+        const tbody = document.getElementById('products-body');
+        if (!products.length) {
+          tbody.innerHTML = '<tr><td colspan="5" style="color:#aaa">No products found</td></tr>';
+          return;
+        }
+        tbody.innerHTML = products.map(p => `
+          <tr>
+            <td>${p.id}</td>
+            <td>${p.name}</td>
+            <td>₹${p.price.toLocaleString()}</td>
+            <td><span class="tag">${p.category}</span></td>
+            <td>
+              <button class="btn-warn" style="font-size:12px;padding:4px 8px;" onclick="fillForm(${p.id},'${p.name}',${p.price},'${p.category}')">Edit</button>
+              <button class="btn-danger" style="font-size:12px;padding:4px 8px;" onclick="quickDelete(${p.id})">Delete</button>
+            </td>
+          </tr>`).join('');
+      }
+
+      function fillForm(id, name, price, category) {
+        document.getElementById('prod-id').value       = id;
+        document.getElementById('prod-name').value     = name;
+        document.getElementById('prod-price').value    = price;
+        document.getElementById('prod-category').value = category;
+      }
+
+      async function createProduct() {
+        const res = await fetch('/api/products', {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify({
+            name:     document.getElementById('prod-name').value,
+            price:    parseFloat(document.getElementById('prod-price').value),
+            category: document.getElementById('prod-category').value,
+          }),
+        });
+        if (res.ok) { loadProducts(); }
+        else { alert('Create failed — are you logged in as Admin?'); }
+      }
+
+      async function updateProduct() {
+        const id = document.getElementById('prod-id').value;
+        if (!id) { alert('Enter an ID to update'); return; }
+        const res = await fetch(`/api/products/${id}`, {
+          method: 'PUT',
+          headers: authHeaders(),
+          body: JSON.stringify({
+            name:     document.getElementById('prod-name').value,
+            price:    parseFloat(document.getElementById('prod-price').value),
+            category: document.getElementById('prod-category').value,
+          }),
+        });
+        if (res.ok) { loadProducts(); }
+        else { alert('Update failed — are you logged in as Admin?'); }
+      }
+
+      async function deleteProduct() {
+        const id = document.getElementById('prod-id').value;
+        if (!id) { alert('Enter an ID to delete'); return; }
+        await quickDelete(id);
+      }
+
+      async function quickDelete(id) {
+        const res = await fetch(`/api/products/${id}`, { method: 'DELETE', headers: authHeaders() });
+        if (res.ok || res.status === 204) { loadProducts(); }
+        else { alert('Delete failed — are you logged in as Admin?'); }
+      }
+
+      // ── SignalR ──────────────────────────────────────────────
+      const connection = new signalR.HubConnectionBuilder()
+        .withUrl('/hubs/notifications')
+        .withAutomaticReconnect()
+        .build();
+
+      // Product notifications from server (broadcast on CRUD)
+      connection.on('ProductNotification', (data) => {
+        addLog(data.message, data.type);
+        loadProducts(); // auto-refresh table
+      });
+
+      // Group chat messages
+      connection.on('ReceivedMessage', (user, message) => {
+        addLog(`${user}: ${message}`, 'msg');
+      });
+
+      connection.onreconnecting(() => {
+        document.getElementById('status-badge').textContent = 'Reconnecting…';
+        document.getElementById('status-badge').className = 'disconnected';
+      });
+      connection.onreconnected(() => {
+        document.getElementById('status-badge').textContent = 'Connected ✅';
+        document.getElementById('status-badge').className = 'connected';
+      });
+
+      async function joinGroup() {
+        const g = document.getElementById('group-name').value || 'general';
+        await connection.invoke('JoinGroup', g);
+        addLog(`Joined group: ${g}`, 'info');
+      }
+
+      async function leaveGroup() {
+        const g = document.getElementById('group-name').value || 'general';
+        await connection.invoke('LeaveGroup', g);
+        addLog(`Left group: ${g}`, 'info');
+      }
+
+      async function sendToGroup() {
+        const g    = document.getElementById('group-name').value || 'general';
+        const user = document.getElementById('chat-user').value || 'Anonymous';
+        const msg  = document.getElementById('chat-message').value;
+        if (!msg) return;
+        await connection.invoke('SendToGroup', g, user, msg);
+        document.getElementById('chat-message').value = '';
+      }
+
+      connection.start()
+        .then(() => {
+          document.getElementById('status-badge').textContent = 'Connected ✅';
+          document.getElementById('status-badge').className = 'connected';
+          addLog('SignalR connected', 'info');
+        })
+        .catch(() => {
+          document.getElementById('status-badge').textContent = 'Failed ❌';
+          addLog('SignalR connection failed', 'error');
+        });
+    </script>
+  </body>
+</html>

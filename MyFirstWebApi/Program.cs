@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using MyFirstWebApi.Data;
+using MyFirstWebApi.Hubs;
 using MyFirstWebApi.Models;
 using MyFirstWebApi.Services;
 using Scalar.AspNetCore;
@@ -68,7 +69,11 @@ builder.Services.AddStackExchangeRedisCache(options =>
     options.InstanceName = "MyFirstApi:";
 });
 
+// signalR
+builder.Services.AddSignalR();
+
 // register Services
+builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ICacheService, CacheService>();
@@ -101,10 +106,15 @@ if (app.Environment.IsDevelopment())
     app.MapScalarApiReference();
 }
 
-app.UseHttpsRedirection();
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseStaticFiles();
 app.MapControllers();
+app.MapHub<NotificationHub>("/hubs/notifications");
 
 //seed data
 using (var scope = app.Services.CreateScope())

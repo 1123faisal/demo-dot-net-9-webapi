@@ -10,10 +10,12 @@ namespace MyFirstWebApi.Controllers;
 public class ProductsController : ControllerBase
 {
     private readonly IProductService _service;
+    private readonly INotificationService _notify;
 
-    public ProductsController(IProductService service)
+    public ProductsController(IProductService service, INotificationService notify)
     {
         _service = service;
+        _notify = notify;
     }
 
     [HttpGet]
@@ -37,6 +39,7 @@ public class ProductsController : ControllerBase
     public async Task<ActionResult<Product>> Create(Product newProduct)
     {
         var created = await _service.CreateAsync(newProduct);
+        await _notify.NotifyProductCreated(created.Name, created.Price);
         return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
     }
 
@@ -47,6 +50,7 @@ public class ProductsController : ControllerBase
         var product = await _service.UpdateAsync(id, updated);
         if (product == null)
             return NotFound("Product not found.");
+        await _notify.NotifyProductUpdated(product.Name);
         return Ok(product);
     }
 
@@ -54,9 +58,15 @@ public class ProductsController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<ActionResult> Delete(int id)
     {
+        var product = await _service.GetByIdAsync(id);
+        if (product == null)
+            return NotFound("Product not found.");
+
         var isDeleted = await _service.DeleteAsync(id);
         if (isDeleted != true)
             return NotFound("Product Not Found.");
+
+        await _notify.NotifyProductDeleted(product.Name);
         return NoContent();
     }
 
