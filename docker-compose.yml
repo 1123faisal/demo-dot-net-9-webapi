@@ -11,6 +11,28 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
-    volumes:
-      - ./data:/app/data
+      - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=myfirstapi;Username=admin;Password=password123
+    depends_on:
+      db:
+        condition: service_healthy
     restart: unless-stopped
+
+  db:
+    image: postgres
+    environment:
+      - POSTGRES_PASSWORD=password123
+      - POSTGRES_USER=admin
+      - POSTGRES_DB=myfirstapi
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d myfirstapi"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  postgres_data:

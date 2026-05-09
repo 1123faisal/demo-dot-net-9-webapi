@@ -58,7 +58,7 @@ builder.Services.AddOpenApi(options =>
 
 // database
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection"))
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"))
 );
 
 // register Services
@@ -102,7 +102,23 @@ app.MapControllers();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.Migrate();
+
+    // retry logic - wait for postgres to be ready
+    var retries = 5;
+    while (retries > 0)
+    {
+        try
+        {
+            db.Database.Migrate();
+            break;
+        }
+        catch (System.Exception)
+        {
+            retries--;
+            System.Console.WriteLine($"Database is not ready -- retrying ({retries} left)");
+            Thread.Sleep(3000); // wait 3 sec before retrying.
+        }
+    }
 
     if (!db.Products.Any())
     {
