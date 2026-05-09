@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Moq;
 using MyFirstWebApi.Data;
 using MyFirstWebApi.Models;
 using MyFirstWebApi.Services;
@@ -7,6 +8,8 @@ namespace MyFirstWebApi.Tests.Services;
 
 public class ProductServiceTests
 {
+    private ICacheService GetMockCache() => new Mock<ICacheService>().Object;
+
     private AppDbContext GetInMemoryDb()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
@@ -35,7 +38,7 @@ public class ProductServiceTests
         );
         await db.SaveChangesAsync();
 
-        var service = new ProductService(db);
+        var service = new ProductService(db, GetMockCache());
         var result = await service.GetAllAsync();
 
         Assert.Equal(2, result.Count);
@@ -56,7 +59,7 @@ public class ProductServiceTests
         );
         await db.SaveChangesAsync();
 
-        var service = new ProductService(db);
+        var service = new ProductService(db, GetMockCache());
 
         var result = await service.GetByIdAsync(1);
 
@@ -68,7 +71,7 @@ public class ProductServiceTests
     public async Task GetByIdAsync_ReturnNull_WhenNotExists()
     {
         var db = GetInMemoryDb();
-        var service = new ProductService(db);
+        var service = new ProductService(db, GetMockCache());
         var result = await service.GetByIdAsync(1);
         Assert.Null(result);
     }
@@ -77,7 +80,7 @@ public class ProductServiceTests
     public async Task CreateAsync_AddsProductToDatabase()
     {
         var db = GetInMemoryDb();
-        var service = new ProductService(db);
+        var service = new ProductService(db, GetMockCache());
         var newProduct = new Product
         {
             Name = "Phone",
@@ -106,7 +109,7 @@ public class ProductServiceTests
         );
         await db.SaveChangesAsync();
 
-        var service = new ProductService(db);
+        var service = new ProductService(db, GetMockCache());
         var updated = new Product
         {
             Name = "New Name",
@@ -121,3 +124,4 @@ public class ProductServiceTests
         Assert.Equal(200, product.Price);
     }
 }
+
