@@ -1,6 +1,9 @@
 ## Build outputs
 bin/
 obj/
+*.db
+.env
+data/
 
 ## Visual Studio / VS Code
 .vs/
