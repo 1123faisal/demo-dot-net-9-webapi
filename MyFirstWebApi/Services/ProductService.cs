@@ -7,16 +7,27 @@ namespace MyFirstWebApi.Services;
 public class ProductService : IProductService
 {
     private readonly AppDbContext _db;
+    private readonly ICacheService _cache;
 
-    public ProductService(AppDbContext db)
+    // cache key constants
+    private const string AllProductsCacheKey = "products:all";
+
+    private string ProductCacheKey(int id) => $"products:{id}";
+
+    public ProductService(AppDbContext db, ICacheService cache)
     {
         _db = db;
+        _cache = cache;
     }
 
     public async Task<Product> CreateAsync(Product product)
     {
         _db.Products.Add(product);
         await _db.SaveChangesAsync();
+
+        // invalidate all the product cache
+        await _cache.RemoveAsync(AllProductsCacheKey);
+
         return product;
     }
 
@@ -27,17 +38,47 @@ public class ProductService : IProductService
             return false;
         _db.Products.Remove(product);
         await _db.SaveChangesAsync();
+
+        // invalidate both caches
+        await _cache.RemoveAsync(AllProductsCacheKey);
+        await _cache.RemoveAsync(ProductCacheKey(id));
+
         return true;
     }
 
     public async Task<List<Product>> GetAllAsync()
     {
-        return await _db.Products.ToListAsync();
+        var cached = await _cache.GetAsync<List<Product>>(AllProductsCacheKey);
+        if (cached != null)
+        {
+            System.Console.WriteLine("Cache hit - returning from Redis");
+            return cached;
+        }
+        System.Console.WriteLine("Cache MISS - querying database");
+
+        var products = await _db.Products.ToListAsync();
+        await _cache.SetAsync(AllProductsCacheKey, products, TimeSpan.FromMinutes(5));
+        return products;
     }
 
     public async Task<Product?> GetByIdAsync(int id)
     {
-        return await _db.Products.FindAsync(id);
+        var cacheKey = ProductCacheKey(id);
+        var cached = await _cache.GetAsync<Product>(cacheKey);
+        if (cached != null)
+        {
+            System.Console.WriteLine($"Hti Cache - returning product {id} from cache");
+            return cached;
+        }
+
+        System.Console.WriteLine($"Cache Miss - querying database for product {id}");
+
+        var product = await _db.Products.FindAsync(id);
+
+        if (product != null)
+            await _cache.SetAsync(cacheKey, product, TimeSpan.FromMinutes(10));
+
+        return product;
     }
 
     public async Task<List<Product>> SearchAsync(string? category, double? maxPrice)
@@ -62,6 +103,11 @@ public class ProductService : IProductService
         product.Category = updated.Category;
         product.Price = updated.Price;
         await _db.SaveChangesAsync();
+
+        // invalidate both caches
+        await _cache.RemoveAsync(AllProductsCacheKey);
+        await _cache.RemoveAsync(ProductCacheKey(id));
+
         return product;
     }
 }

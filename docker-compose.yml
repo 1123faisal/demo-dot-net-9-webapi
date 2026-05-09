@@ -12,9 +12,13 @@ services:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
       - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=myfirstapi;Username=admin;Password=password123
+      - ConnectionStrings__Redis=redis:6379
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+
     restart: unless-stopped
 
   db:
@@ -34,5 +38,19 @@ services:
       retries: 5
       start_period: 30s
 
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
 volumes:
   postgres_data:
+  redis_data:
