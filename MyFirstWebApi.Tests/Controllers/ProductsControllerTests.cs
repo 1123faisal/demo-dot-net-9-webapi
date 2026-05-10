@@ -11,7 +11,8 @@ public class ProductsControllerTests
     private (ProductsController controller, Mock<IProductService> mockService) GetController()
     {
         var mockService = new Mock<IProductService>();
-        var controller = new ProductsController(mockService.Object);
+        var mockNotify = new Mock<INotificationService>();
+        var controller = new ProductsController(mockService.Object, mockNotify.Object);
         return (controller, mockService);
     }
 
